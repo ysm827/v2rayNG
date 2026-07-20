@@ -1,15 +1,25 @@
 package com.v2ray.ang.viewmodel
 
+import android.app.Application
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import com.v2ray.ang.AppConfig
+import com.v2ray.ang.R
 import com.v2ray.ang.dto.entities.SubscriptionCache
 import com.v2ray.ang.dto.entities.SubscriptionItem
+import com.v2ray.ang.handler.AngConfigManager
 import com.v2ray.ang.handler.MmkvManager
+import com.v2ray.ang.handler.MmkvManager.rememberMmkvBool
 import com.v2ray.ang.handler.SettingsChangeManager
 import com.v2ray.ang.handler.SettingsManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 
-class SubscriptionsViewModel : BaseViewModel() {
+class SubscriptionsViewModel(application: Application) : BaseViewModel(application) {
     private val subscriptions: MutableList<SubscriptionCache> =
         MmkvManager.decodeSubscriptions().toMutableList()
 
@@ -50,6 +60,28 @@ class SubscriptionsViewModel : BaseViewModel() {
             SettingsManager.swapSubscriptions(fromPosition, toPosition)
             SettingsChangeManager.makeSetupGroupTab()
             _subsFlow.value = subscriptions.toList()
+        }
+    }
+
+    fun updateSubscriptions() {
+        launchLoading {
+            val result = withContext(Dispatchers.IO) {
+                AngConfigManager.updateConfigViaSubAll()
+            }
+
+            if (result.successCount + result.failureCount + result.skipCount == 0) {
+                toast(R.string.title_update_subscription_no_subscription)
+            } else if (result.successCount > 0 && result.failureCount + result.skipCount == 0) {
+                toast(getString(R.string.title_update_config_count, result.configCount))
+            } else {
+                toast(
+                    getString(
+                        R.string.title_update_subscription_result,
+                        result.configCount, result.successCount, result.failureCount, result.skipCount
+                    )
+                )
+            }
+            reload()
         }
     }
 }
